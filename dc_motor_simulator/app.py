@@ -33,7 +33,10 @@ from dc_motor_simulator.parameters.defaults import (
     get_default_parameter_values,
 )
 from dc_motor_simulator.parameters.parameter_manager import ParameterManager
-from dc_motor_simulator.simulation.energy_balance import compute_energy_residual
+from dc_motor_simulator.simulation.energy_balance import (
+    compute_energy_residual,
+    compute_thermal_balance_residual,
+)
 from dc_motor_simulator.simulation.equations import state_derivative
 from dc_motor_simulator.simulation.solver import (
     SimulationResult,
@@ -348,7 +351,7 @@ def _live_figures(
         line_plot(
             sample_time,
             derived["residual"][selected],
-            title="Specified energy residual",
+            title="Whole-motor balance residual",
             yaxis_title="Residual (W)",
             line_name="Residual",
         )
@@ -360,6 +363,7 @@ def _derived_data(result: SimulationResult, params: dict[str, float], inputs: di
     torques = []
     powers = []
     residuals = []
+    thermal_residuals = []
     electrical_power = []
     for index, time_value in enumerate(result.time):
         state = vector_to_state(result.states[:, index])
@@ -376,11 +380,15 @@ def _derived_data(result: SimulationResult, params: dict[str, float], inputs: di
         torques.append(params["Laf"] * state["if_"] * state["ia"])
         powers.append(state["omega"] * params["Laf"] * state["if_"] * state["ia"])
         residuals.append(compute_energy_residual(params, state, inputs, derivative_map))
+        thermal_residuals.append(
+            compute_thermal_balance_residual(params, state, inputs, derivative_map)
+        )
         electrical_power.append(inputs["V"] * (state["ia"] + state["if_"]))
     return {
         "torque": np.asarray(torques),
         "mechanical_power": np.asarray(powers),
         "residual": np.asarray(residuals),
+        "thermal_residual": np.asarray(thermal_residuals),
         "electrical_power": np.asarray(electrical_power),
     }
 
@@ -402,6 +410,7 @@ def _record_result(result: SimulationResult) -> None:
             power,
             mechanical_power=float(derived["mechanical_power"][index]),
             energy_residual=float(derived["residual"][index]),
+            thermal_balance_residual=float(derived["thermal_residual"][index]),
         )
 
 
@@ -536,8 +545,14 @@ def _render_results() -> None:
         power_figure.update_layout(template="plotly_white", title="Electrical and mechanical power", xaxis_title="Time (s)", yaxis_title="Power (W)", hovermode="x unified", height=370)
         st.plotly_chart(power_figure, use_container_width=True)
     with energy:
-        st.plotly_chart(line_plot(result.time, derived["residual"], title="Specified energy residual", yaxis_title="Residual (W)", line_name="Residual"), use_container_width=True)
-        st.caption("Residual follows the supplied expression exactly; a non-zero residual is shown rather than corrected.")
+        whole_motor_error = float(np.max(np.abs(derived["residual"])))
+        thermal_error = float(np.max(np.abs(derived["thermal_residual"])))
+        check_columns = st.columns(2)
+        check_columns[0].metric("Worst whole-motor residual", f"{whole_motor_error:.3e} W")
+        check_columns[1].metric("Worst thermal residual", f"{thermal_error:.3e} W")
+        st.caption("Worst absolute residual is computed over every saved solver sample; expected magnitude is about 1e-9 W or smaller.")
+        st.plotly_chart(line_plot(result.time, derived["residual"], title="Whole-motor balance residual", yaxis_title="Residual (W)", line_name="Residual"), use_container_width=True)
+        st.plotly_chart(line_plot(result.time, derived["thermal_residual"], title="Thermal balance residual", yaxis_title="Residual (W)", line_name="Residual"), use_container_width=True)
 
 
 def _render_recording() -> None:

@@ -18,6 +18,7 @@ class SimulationRecorder:
         power: float,
         mechanical_power: float = 0.0,
         energy_residual: float = 0.0,
+        thermal_balance_residual: float = 0.0,
     ) -> None:
         row = {
             "time_s": time_value,
@@ -36,6 +37,7 @@ class SimulationRecorder:
             "electrical_input_power_W": power,
             "mechanical_power_W": mechanical_power,
             "energy_residual_W": energy_residual,
+            "thermal_balance_residual_W": thermal_balance_residual,
         }
         self.rows.append(row)
 

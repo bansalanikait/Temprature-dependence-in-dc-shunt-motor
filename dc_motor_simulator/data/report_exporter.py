@@ -57,7 +57,6 @@ PARAMETER_SYMBOLS_HTML = {
     "phi_w": "φ<sub>w</sub>",
     "sigma": "σ",
     "eps_i": "ε<sub>i</sub>",
-    "eps_omega": "ε<sub>ω</sub>",
     "delta": "δ",
     "DTref": "Δ<i>T</i><sub>ref</sub>",
     "R0": "<i>R</i><sub>0</sub>",
@@ -119,6 +118,29 @@ def _summary_rows(frame: pd.DataFrame) -> str:
             f"<td>{numeric.min():.6g}</td>"
             f"<td>{numeric.max():.6g}</td>"
             f"<td>{numeric.iloc[-1]:.6g}</td>"
+            "</tr>"
+        )
+    return "\n".join(rows)
+
+
+def _balance_check_rows(frame: pd.DataFrame) -> str:
+    checks = [
+        ("Thermal balance residual", "thermal_balance_residual_W"),
+        ("Whole-motor balance residual", "energy_residual_W"),
+    ]
+    rows = []
+    for label, column in checks:
+        if column not in frame:
+            continue
+        values = pd.to_numeric(frame[column], errors="coerce").dropna()
+        if values.empty:
+            continue
+        worst_index = values.abs().idxmax()
+        rows.append(
+            "<tr>"
+            f"<td>{html.escape(label)}</td>"
+            f"<td>{abs(values.loc[worst_index]):.6e} W</td>"
+            f"<td>{float(frame.loc[worst_index, 'time_s']):.6g} s</td>"
             "</tr>"
         )
     return "\n".join(rows)
@@ -188,10 +210,16 @@ def _charts_html(frame: pd.DataFrame) -> str:
         ],
     )
     add_line_chart(
-        "Specified energy residual",
+        "Whole-motor balance residual",
         "Residual (W)",
         [("Residual", "energy_residual_W", "#d97706")],
     )
+    if "thermal_balance_residual_W" in frame:
+        add_line_chart(
+            "Thermal balance residual",
+            "Residual (W)",
+            [("Residual", "thermal_balance_residual_W", "#0f766e")],
+        )
 
     fragments = []
     for index, figure in enumerate(figures):
@@ -254,11 +282,15 @@ th {{ background: #eef3f9; }} .chart {{ margin: 22px 0; }}
 </header>
 <h2>Run summary</h2>
 <table><tbody>{_condition_rows(conditions)}</tbody></table>
-<div class="note">Numerical simulation output is not experimental validation. The energy residual shown below follows the supplied source equation and is not silently corrected.</div>
+<div class="note">Numerical simulation output is not experimental validation. Thermal and whole-motor balance checks use the configured equations; their worst absolute residuals are listed below.</div>
 <h2>Result statistics</h2>
 <p class="subtle">Initial, minimum, maximum, and final sample values for each recorded state/output.</p>
 <table><thead><tr><th>Quantity</th><th>Initial</th><th>Minimum</th><th>Maximum</th><th>Final</th></tr></thead>
 <tbody>{_summary_rows(frame)}</tbody></table>
+<h2>Balance checks</h2>
+<p class="subtle">Worst absolute residual over all recorded samples; expected to be about 1e-9 W or smaller.</p>
+<table><thead><tr><th>Check</th><th>Worst absolute residual</th><th>At time</th></tr></thead>
+<tbody>{_balance_check_rows(frame)}</tbody></table>
 <h2>Response plots</h2>
 {_charts_html(frame)}
 <h2>Configured motor parameters</h2>

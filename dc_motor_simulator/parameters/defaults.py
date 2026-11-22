@@ -52,7 +52,6 @@ PARAMETER_METADATA = {
     # Physical and numerical constants
     "sigma": {"name": "Stefan-Boltzmann constant", "category": "Physical and numerical", "units": "W/m2.K4", "source": "measured", "status": "fixed", "value": 5.670374419e-8},
     "eps_i": {"name": "Current smoothing width", "category": "Physical and numerical", "units": "A", "source": "literature-derived", "status": "estimated", "value": 0.2},
-    "eps_omega": {"name": "Speed smoothing width", "category": "Physical and numerical", "units": "rad/s", "source": "literature-derived", "status": "estimated", "value": 3.0},
     "delta": {"name": "Temperature smoothing offset", "category": "Physical and numerical", "units": "K", "source": "literature-derived", "status": "estimated", "value": 0.1},
     "DTref": {"name": "Reference temperature rise", "category": "Physical and numerical", "units": "K", "source": "literature-derived", "status": "estimated", "value": 12.0},
 

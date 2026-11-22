@@ -25,7 +25,6 @@ def validate_parameter_set(params: dict[str, float]) -> list[str]:
         "La": "Armature inductance",
         "J": "Moment of inertia",
         "eps_i": "Current smoothing width",
-        "eps_omega": "Speed smoothing width",
         "delta": "Temperature smoothing offset",
         "DTref": "Reference temperature rise",
     }

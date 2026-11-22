@@ -29,6 +29,7 @@ def test_report_archive_contains_report_data_and_exact_conditions():
             "electrical_input_power_W": [616.0, 748.0],
             "mechanical_power_W": [3.0, 4.8],
             "energy_residual_W": [2.0, 1.0],
+            "thermal_balance_residual_W": [0.5, -0.25],
         }
     )
     conditions = {
@@ -50,6 +51,8 @@ def test_report_archive_contains_report_data_and_exact_conditions():
 
     assert "DC Shunt Motor Simulation Report" in report
     assert "Power" in report
+    assert "Balance checks" in report
+    assert "Worst absolute residual" in report
     assert "<i>R</i><sub>f0</sub>" in report
     assert "<i>R</i><sub>x</sub>" in report
     assert "α<sub>e</sub>" in report

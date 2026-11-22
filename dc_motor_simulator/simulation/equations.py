@@ -10,10 +10,6 @@ def smooth_sign(value: float, width: float) -> float:
     return math.tanh(value / width) if width > 0 else 0.0
 
 
-def rotor_speed_term(omega: float, eps_omega: float) -> float:
-    return omega * smooth_sign(omega, eps_omega)
-
-
 def armature_resistance(theta_a: float, params: Mapping[str, float]) -> float:
     r0 = float(params.get("R0", 0.0))
     alpha_e = float(params.get("alpha_e", 0.0))
@@ -31,17 +27,13 @@ def field_resistance(theta_f: float, params: Mapping[str, float]) -> float:
 def armature_frame_conductance(omega: float, params: Mapping[str, float]) -> float:
     ga0 = float(params.get("Ga0", 0.0))
     ka = float(params.get("ka", 0.0))
-    eps_omega = float(params.get("eps_omega", 0.0))
-    omega_s = rotor_speed_term(omega, eps_omega)
-    return ga0 * (1.0 + ka * omega_s)
+    return ga0 * (1.0 + ka * omega)
 
 
 def brush_frame_conductance(omega: float, params: Mapping[str, float]) -> float:
     gb0 = float(params.get("Gb0", 0.0))
     kb = float(params.get("kb", 0.0))
-    eps_omega = float(params.get("eps_omega", 0.0))
-    omega_s = rotor_speed_term(omega, eps_omega)
-    return gb0 * (1.0 + kb * omega_s)
+    return gb0 * (1.0 + kb * omega)
 
 
 def compute_helper_equations(params: Mapping[str, float], state: Mapping[str, float], inputs: Mapping[str, float]) -> dict[str, float]:
@@ -55,7 +47,6 @@ def compute_helper_equations(params: Mapping[str, float], state: Mapping[str, fl
     theta_fr = float(state["theta_fr"])
     tamb = float(inputs["Tamb"])
     eps_i = float(params.get("eps_i", 1e-9))
-    eps_omega = float(params.get("eps_omega", 1.0))
     delta = float(params.get("delta", 0.1))
     dtref = float(params.get("DTref", 1.0))
     as_surface = float(params.get("As", 0.0))
@@ -66,34 +57,76 @@ def compute_helper_equations(params: Mapping[str, float], state: Mapping[str, fl
     eps_s = float(params.get("eps_s", 0.0))
 
     s_ia = smooth_sign(ia, eps_i)
-    s_omega = smooth_sign(omega, eps_omega)
-    omega_s = rotor_speed_term(omega, eps_omega)
 
     r_a = armature_resistance(theta_a, params)
     r_f = field_resistance(theta_f, params)
     ga = armature_frame_conductance(omega, params)
     gb = brush_frame_conductance(omega, params)
 
-    delta_theta = math.sqrt((theta_fr - tamb) ** 2 + delta ** 2)
-    hn = hn0 * (delta_theta / dtref) ** 0.25
-    h_f = kf * omega_s
-    tfr = theta_fr + 273.15
-    tamb_k = tamb + 273.15
-    hr = eps_s * sigma * (tfr ** 2 + tamb_k ** 2) * (tfr + tamb_k)
-    gs = (hn + h_f + hr) * as_surface + g_m
+    phi_a = float(params.get("phi_a", 0.0))
+    phi_b = float(params.get("phi_b", 0.0))
+    phi_p = float(params.get("phi_p", 0.0))
+    phi_w = float(params.get("phi_w", 0.0))
+    v_b0 = float(params.get("Vb0", 0.0))
+    tcb = float(params.get("Tcb", 0.0))
+    b = float(params.get("B", 0.0))
+    cw = float(params.get("cw", 0.0))
+    ch = float(params.get("ch", 0.0))
+    ce = float(params.get("ce", 0.0))
+    gab = float(params.get("Gab", 0.0))
+    gf = float(params.get("Gf", 0.0))
+
+    dth = theta_fr - tamb
+    d_t_s = math.sqrt(dth ** 2 + delta ** 2)
+    q_nat = hn0 * as_surface * (d_t_s / dtref) ** 0.25 * dth
+    q_for = kf * omega * as_surface * dth
+    t_fr_k = theta_fr + 273.15
+    t_air_k = tamb + 273.15
+    q_rad = eps_s * sigma * as_surface * (t_fr_k ** 4 - t_air_k ** 4)
+    q_mount = g_m * dth
+    q_room = q_nat + q_for + q_rad + q_mount
+
+    p_cu_a = phi_a * r_a * ia ** 2
+    p_cu_b = phi_b * r_a * ia ** 2
+    p_cu_p = phi_p * r_a * ia ** 2
+    p_iron = (ch * omega + ce * omega ** 2) * if_ ** 2
+    p_brdrop = v_b0 * ia * s_ia
+    p_brfric = tcb * omega
+    p_field = r_f * if_ ** 2
+    p_bear = b * omega ** 2
+    p_wind = phi_w * cw * omega ** 3
+
+    q_af = ga * (theta_a - theta_fr)
+    q_bf = gb * (theta_b - theta_fr)
+    q_ab = gab * (theta_a - theta_b)
+    q_ff = gf * (theta_f - theta_fr)
 
     return {
         "s_ia": s_ia,
-        "s_omega": s_omega,
-        "omega_s": omega_s,
         "R_a": r_a,
         "R_f": r_f,
         "Ga": ga,
         "Gb": gb,
-        "hn": hn,
-        "hF": h_f,
-        "hr": hr,
-        "Gs": gs,
+        "P_cu_a": p_cu_a,
+        "P_cu_b": p_cu_b,
+        "P_cu_p": p_cu_p,
+        "P_iron": p_iron,
+        "P_brdrop": p_brdrop,
+        "P_brfric": p_brfric,
+        "P_field": p_field,
+        "P_bear": p_bear,
+        "P_wind": p_wind,
+        "Q_af": q_af,
+        "Q_bf": q_bf,
+        "Q_ab": q_ab,
+        "Q_ff": q_ff,
+        "dth": dth,
+        "dT_s": d_t_s,
+        "Q_nat": q_nat,
+        "Q_for": q_for,
+        "Q_rad": q_rad,
+        "Q_mount": q_mount,
+        "Q_room": q_room,
     }
 
 
@@ -110,36 +143,20 @@ def state_derivative(t: float, y: list[float], params: Mapping[str, float], inpu
     }
     v = float(inputs["V"])
     tl = float(inputs["TL"])
-    tamb = float(inputs["Tamb"])
     if_ = state["if_"]
     ia = state["ia"]
     omega = state["omega"]
-    theta_a = state["theta_a"]
-    theta_b = state["theta_b"]
-    theta_f = state["theta_f"]
-    theta_fr = state["theta_fr"]
 
     helper = compute_helper_equations(params, state, inputs)
     s_ia = helper["s_ia"]
-    s_omega = helper["s_omega"]
-    omega_s = helper["omega_s"]
     r_a = helper["R_a"]
     r_f = helper["R_f"]
-    ga = helper["Ga"]
-    gb = helper["Gb"]
-    gab = float(params.get("Gab", 0.0))
-    g_f = float(params.get("Gf", 0.0))
+    v_b0 = float(params.get("Vb0", 0.0))
     laf = float(params.get("Laf", 0.0))
     j = float(params.get("J", 0.0))
-    b = float(params.get("B", 0.0))
-    tcb = float(params.get("Tcb", 0.0))
     cw = float(params.get("cw", 0.0))
     ch = float(params.get("ch", 0.0))
     ce = float(params.get("ce", 0.0))
-    phi_a = float(params.get("phi_a", 0.0))
-    phi_b = float(params.get("phi_b", 0.0))
-    phi_p = float(params.get("phi_p", 0.0))
-    phi_w = float(params.get("phi_w", 0.0))
     rx = float(params.get("Rx", 0.0))
     l_f = float(params.get("Lf", 0.0))
     l_a = float(params.get("La", 0.0))
@@ -147,8 +164,6 @@ def state_derivative(t: float, y: list[float], params: Mapping[str, float], inpu
     cb = float(params.get("Cb", 0.0))
     cf = float(params.get("Cf", 0.0))
     cfr = float(params.get("Cfr", 0.0))
-    v_b0 = float(params.get("Vb0", 0.0))
-    g_s = helper["Gs"]
 
     # Equation 1: field circuit
     dif_dt = (v - (r_f + rx) * if_) / l_f
@@ -160,41 +175,41 @@ def state_derivative(t: float, y: list[float], params: Mapping[str, float], inpu
     d_omega_dt = (
         laf * if_ * ia
         - tl
-        - b * omega
-        - tcb * s_omega
-        - cw * omega * abs(omega)
-        - (ch * s_omega + ce * omega) * if_ ** 2
+        - float(params.get("B", 0.0)) * omega
+        - float(params.get("Tcb", 0.0))
+        - cw * omega ** 2
+        - (ch + ce * omega) * if_ ** 2
     ) / j
 
     # Equation 4: armature thermal equation
     dtheta_a_dt = (
-        phi_a * r_a * ia ** 2
-        + (ch * omega_s + ce * omega ** 2) * if_ ** 2
-        - ga * (theta_a - theta_fr)
-        - gab * (theta_a - theta_b)
+        helper["P_cu_a"]
+        + helper["P_iron"]
+        - helper["Q_af"]
+        - helper["Q_ab"]
     ) / ca
 
     # Equation 5: brush thermal equation
     dtheta_b_dt = (
-        phi_b * r_a * ia ** 2
-        + v_b0 * ia * s_ia
-        + tcb * omega_s
-        + gab * (theta_a - theta_b)
-        - gb * (theta_b - theta_fr)
+        helper["P_cu_b"]
+        + helper["P_brdrop"]
+        + helper["P_brfric"]
+        + helper["Q_ab"]
+        - helper["Q_bf"]
     ) / cb
 
     # Equation 6: field thermal equation
-    dtheta_f_dt = (r_f * if_ ** 2 - g_f * (theta_f - theta_fr)) / cf
+    dtheta_f_dt = (helper["P_field"] - helper["Q_ff"]) / cf
 
     # Equation 7: frame thermal equation
     dtheta_fr_dt = (
-        phi_p * r_a * ia ** 2
-        + b * omega ** 2
-        + phi_w * cw * omega ** 2 * abs(omega)
-        + ga * (theta_a - theta_fr)
-        + gb * (theta_b - theta_fr)
-        + g_f * (theta_f - theta_fr)
-        - g_s * (theta_fr - tamb)
+        helper["P_cu_p"]
+        + helper["P_bear"]
+        + helper["P_wind"]
+        + helper["Q_af"]
+        + helper["Q_bf"]
+        + helper["Q_ff"]
+        - helper["Q_room"]
     ) / cfr
 
     return [dif_dt, dia_dt, d_omega_dt, dtheta_a_dt, dtheta_b_dt, dtheta_f_dt, dtheta_fr_dt]

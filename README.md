@@ -9,8 +9,8 @@ This project implements a Python + Streamlit application for the seven-equation 
 - Input panel for supply voltage, load torque, ambient temperature, initial conditions, and simulation settings.
 - Live dashboard showing operating indicators and thermal values.
 - Interactive graphs for current, temperature, torque, and power.
-- Live plots for current, speed, all four temperatures, torque, power, and the specified energy residual.
-- Energy residual and validation checks.
+- Live plots for current, speed, all four temperatures, torque, power, and the whole-motor balance residual.
+- Thermal and whole-motor balance checks report the worst absolute residual over the sampled run.
 - CSV export for recorded simulation runs and a complete ZIP report with the HTML charts, CSV data, exact test conditions, and configured parameter values.
 
 ## Installation
